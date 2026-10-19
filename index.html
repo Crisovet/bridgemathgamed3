@@ -806,6 +806,8 @@ function renderQuestion(){
 function resolve(){
  if(selected.length===0||locked||!started||finished||state==='walking')return;
  locked=true;$('lockBtn').disabled=true;const q=questions[turn],correctIndices=Array.isArray(q.c)?q.c:[q.c],correct=selected.length===correctIndices.length&&selected.every(i=>correctIndices.includes(i));outcomes[turn]=correct;picked[turn]=[...selected];
+ /* Phase 1: 3rd correct answer locked. Push the score to Google Sheets right now, whatever the player does next (End game, Chase, or closing the browser). Duplicates after Chase are acceptable. */
+ if(correct&&outcomes.filter(o=>o===true).length===3)submitResult(3,3);
  [...$('answers').children].forEach((el,i)=>{el.disabled=true;if(correctIndices.includes(i))el.classList.add('good');if(selected.includes(i)&&!correctIndices.includes(i))el.classList.add('bad')});
  {const hl=[...$('answers').children];setTimeout(()=>hl.forEach(el=>el.classList.remove('good','bad','chosen')),2000)}
  if(correct){
@@ -847,23 +849,6 @@ function submitResult(score,total){
  document.body.appendChild(form);form.submit();form.remove();
  log('Result submission sent to Google Sheets. Please verify the row in the spreadsheet.');
 }
-/* Phase-1 safety net: if all 3 answers were correct but the player closes the browser/tab before choosing
-   "End the game" or "Chase", the score is still pushed to Google Sheets (once) as the page unloads.
-   Choosing End game (finish -> submitResult) or Chase (chasing=true) disables this, so no duplicate rows. */
-function sendPhase1OnExit(){
- if(resultSent||finished||chasing||!started)return;
- if(outcomes.filter(o=>o===true).length<3)return;
- resultSent=true;
- const score=3,total=3;
- const payload={name:heroName,class:studentClass,Class:studentClass,className:studentClass,studentClass:studentClass,phone:studentPhone,quiz:'The Three Crossings - Daily Math Trial',score:String(score),total:String(total),percentage:(total?(score/total)*100:0).toFixed(1)};
- const body=new URLSearchParams(payload);
- let ok=false;
- try{ok=!!(navigator.sendBeacon&&navigator.sendBeacon(APPS_SCRIPT_URL,body))}catch(e){}
- if(!ok){try{fetch(APPS_SCRIPT_URL,{method:'POST',body:body,mode:'no-cors',keepalive:true})}catch(e){}}
- try{saveState()}catch(e){}
-}
-window.addEventListener('pagehide',sendPhase1OnExit);
-window.addEventListener('beforeunload',sendPhase1OnExit);
 function renderReview(){
  const host=$('review'),card=document.querySelector('.end-card');host.innerHTML='';
  const wrong=[];outcomes.forEach((o,i)=>{if(o===false)wrong.push(i)});
